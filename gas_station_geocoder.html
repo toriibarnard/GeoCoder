@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gas Station Address Geocoder</title>
+    <title>Improved Gas Station Geocoder</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -22,29 +22,38 @@
             color: #2c3e50;
             text-align: center;
             margin-bottom: 30px;
-            border-bottom: 3px solid #3498db;
+            border-bottom: 3px solid #e74c3c;
             padding-bottom: 10px;
+        }
+        .improvement-banner {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
         }
         .stats {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
             margin: 20px 0;
         }
         .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
             color: white;
             padding: 20px;
             border-radius: 10px;
             text-align: center;
         }
         .stat-value {
-            font-size: 2rem;
+            font-size: 1.8rem;
             font-weight: bold;
             display: block;
         }
         .stat-label {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             opacity: 0.9;
         }
         .controls {
@@ -54,7 +63,7 @@
             margin: 20px 0;
         }
         button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
             color: white;
             border: none;
             padding: 15px 30px;
@@ -92,7 +101,7 @@
         }
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: linear-gradient(90deg, #e74c3c, #c0392b);
             width: 0%;
             transition: width 0.3s ease;
         }
@@ -111,6 +120,8 @@
         .error { color: #e74c3c; }
         .warning { color: #f39c12; }
         .info { color: #3498db; }
+        .rejected { color: #e67e22; }
+        .duplicate { color: #9b59b6; }
         .file-input {
             display: none;
         }
@@ -139,28 +150,58 @@
         .status.processing { background: #ffeaa7; color: #fdcb6e; }
         .status.complete { background: #74b9ff; color: #0984e3; }
         .status.error { background: #fab1a0; color: #e17055; }
+        .quality-settings {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+        .quality-settings h4 {
+            color: #856404;
+            margin-top: 0;
+        }
+        .setting-row {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .setting-row label {
+            flex: 1;
+            color: #856404;
+        }
+        .setting-row input {
+            width: 60px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🚗 Gas Station Address Geocoder</h1>
+        <h1>🚗 Improved Gas Station Geocoder</h1>
+        
+        <div class="improvement-banner">
+            ✨ FIXED: Now detects and rejects duplicate coordinates, low-quality results, and generic fallback locations!
+        </div>
         
         <div class="stats">
             <div class="stat-card">
-                <span class="stat-value" id="totalStations">380</span>
-                <span class="stat-label">Total Open Stations</span>
+                <span class="stat-value" id="totalStations">0</span>
+                <span class="stat-label">Open Stations</span>
             </div>
             <div class="stat-card">
-                <span class="stat-value" id="addressableStations">379</span>
-                <span class="stat-label">Extractable Addresses</span>
+                <span class="stat-value" id="uniqueGeocoded">0</span>
+                <span class="stat-label">Unique Geocoded</span>
             </div>
             <div class="stat-card">
-                <span class="stat-value" id="successRate">99.7%</span>
-                <span class="stat-label">Success Rate</span>
+                <span class="stat-value" id="duplicatesRejected">0</span>
+                <span class="stat-label">Duplicates Rejected</span>
             </div>
             <div class="stat-card">
-                <span class="stat-value" id="processedCount">0</span>
-                <span class="stat-label">Processed</span>
+                <span class="stat-value" id="realSuccessRate">0%</span>
+                <span class="stat-label">Real Success Rate</span>
             </div>
         </div>
 
@@ -172,36 +213,52 @@
             <label for="fileInput" class="file-label">📁 Select Excel File</label>
             
             <button id="analyzeBtn" onclick="analyzeFile()" disabled>🔍 Analyze Data</button>
-            <button id="geocodeBtn" onclick="startGeocoding()" disabled>🌍 Start Geocoding</button>
+            <button id="geocodeBtn" onclick="startGeocoding()" disabled>🌍 Start Smart Geocoding</button>
             <button id="downloadBtn" onclick="downloadResults()" disabled>💾 Download Results</button>
+            
+            <div class="quality-settings">
+                <h4>🎯 Quality Control Settings</h4>
+                <div class="setting-row">
+                    <label>Minimum confidence score (0.0-1.0):</label>
+                    <input type="number" id="minConfidence" value="0.3" min="0" max="1" step="0.1">
+                </div>
+                <div class="setting-row">
+                    <label>Maximum allowed duplicates per coordinate:</label>
+                    <input type="number" id="maxDuplicates" value="2" min="1" max="5">
+                </div>
+                <div class="setting-row">
+                    <label>Require specific address elements:</label>
+                    <input type="checkbox" id="requireSpecific" checked>
+                </div>
+            </div>
         </div>
 
         <div class="progress-container" id="progressContainer">
-            <h3>🌍 Geocoding Progress</h3>
+            <h3>🌍 Smart Geocoding Progress</h3>
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
             </div>
             <p id="progressText">Ready to start...</p>
-            <p id="progressStats">0 successful, 0 failed out of 0 processed</p>
+            <p id="progressStats">0 unique, 0 duplicates rejected, 0 failed out of 0 processed</p>
         </div>
 
         <div class="log" id="logOutput">
-            <div class="info">📋 Gas Station Address Geocoder - Ready</div>
-            <div class="info">ℹ️  Load the Excel file to begin analysis</div>
-            <div class="info">⚙️  This tool will extract addresses from gas station names and convert them to coordinates</div>
-            <div class="info">📍 Uses OpenStreetMap Nominatim service for geocoding</div>
-            <div class="warning">⚠️  Rate limited to 1 request per second to respect service limits</div>
+            <div class="info">🎯 Improved Gas Station Geocoder - Ready</div>
+            <div class="info">✨ NEW: Detects and rejects duplicate coordinates</div>
+            <div class="info">✨ NEW: Quality control for confidence scores</div>
+            <div class="info">✨ NEW: Validates address specificity</div>
+            <div class="warning">⚠️  Rate limited to 1 request per second</div>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script>
-        // File location: ./gas_station_geocoder.html
-        // Usage: Open this HTML file in a browser and load your Excel file
+        // File location: ./improved_gas_station_geocoder.html
         
         let workbookData = null;
         let processedStations = [];
         let isProcessing = false;
+        let coordinateRegistry = new Map(); // Track used coordinates
 
         // Excel file handling
         document.getElementById('fileInput').addEventListener('change', function(e) {
@@ -249,7 +306,7 @@
                 
                 if (flag === 'open') {
                     const siteName = row[8];
-                    const extractedAddress = extractAddress(siteName);
+                    const extractedAddress = improvedExtractAddress(siteName);
                     
                     if (extractedAddress) {
                         addressableCount++;
@@ -265,11 +322,10 @@
             }
 
             processedStations = openStations;
+            coordinateRegistry.clear(); // Reset coordinate tracking
             
             // Update stats
             document.getElementById('totalStations').textContent = openStations.length;
-            document.getElementById('addressableStations').textContent = addressableCount;
-            document.getElementById('successRate').textContent = ((addressableCount/openStations.length)*100).toFixed(1) + '%';
             
             log('📊 Analysis complete:', 'success');
             log(`   Total open stations: ${openStations.length}`, 'info');
@@ -277,14 +333,6 @@
             log(`   Success rate: ${((addressableCount/openStations.length)*100).toFixed(1)}%`, 'info');
             
             document.getElementById('geocodeBtn').disabled = false;
-            
-            // Show sample addresses
-            log('📋 Sample addresses to be geocoded:', 'info');
-            for (let i = 0; i < Math.min(5, openStations.length); i++) {
-                if (openStations[i].extractedAddress) {
-                    log(`   ${i+1}. ${openStations[i].extractedAddress}`, 'info');
-                }
-            }
         }
 
         async function startGeocoding() {
@@ -294,10 +342,16 @@
             document.getElementById('geocodeBtn').disabled = true;
             document.getElementById('progressContainer').style.display = 'block';
             
-            log('🌍 Starting geocoding process...', 'info');
-            log('⏱️  This will take approximately ' + Math.ceil(processedStations.length * 1.2 / 60) + ' minutes', 'warning');
+            const minConfidence = parseFloat(document.getElementById('minConfidence').value);
+            const maxDuplicates = parseInt(document.getElementById('maxDuplicates').value);
+            const requireSpecific = document.getElementById('requireSpecific').checked;
             
-            let successCount = 0;
+            log('🌍 Starting smart geocoding process...', 'info');
+            log(`🎯 Quality settings: min confidence ${minConfidence}, max duplicates ${maxDuplicates}`, 'info');
+            
+            let uniqueCount = 0;
+            let duplicateRejected = 0;
+            let qualityRejected = 0;
             let failCount = 0;
             
             for (let i = 0; i < processedStations.length; i++) {
@@ -313,11 +367,42 @@
                     log(`${i + 1}/${processedStations.length}: ${station.originalSiteName}`, 'info');
                     
                     try {
-                        const coords = await geocodeAddress(station.extractedAddress);
+                        const coords = await smartGeocode(station.extractedAddress, station.originalSiteName);
+                        
                         if (coords) {
+                            // Quality checks
+                            const qualityCheck = validateGeocodingQuality(
+                                coords, 
+                                station.extractedAddress, 
+                                station.originalSiteName,
+                                minConfidence,
+                                requireSpecific
+                            );
+                            
+                            if (!qualityCheck.passed) {
+                                log(`   ❌ Quality rejected: ${qualityCheck.reason}`, 'rejected');
+                                qualityRejected++;
+                                continue;
+                            }
+                            
+                            // Duplicate check
+                            const coordKey = `${coords.lat.toFixed(6)},${coords.lon.toFixed(6)}`;
+                            if (coordinateRegistry.has(coordKey)) {
+                                const existing = coordinateRegistry.get(coordKey);
+                                if (existing.length >= maxDuplicates) {
+                                    log(`   🔄 Duplicate rejected: Same location as ${existing[0].name}`, 'duplicate');
+                                    duplicateRejected++;
+                                    continue;
+                                }
+                                existing.push({ name: station.originalSiteName });
+                            } else {
+                                coordinateRegistry.set(coordKey, [{ name: station.originalSiteName }]);
+                            }
+                            
                             station.coordinates = coords;
-                            log(`   ✅ ${coords.lat}, ${coords.lon}`, 'success');
-                            successCount++;
+                            log(`   ✅ Unique: ${coords.lat}, ${coords.lon}`, 'success');
+                            uniqueCount++;
+                            
                         } else {
                             log(`   ❌ Geocoding failed`, 'error');
                             failCount++;
@@ -335,29 +420,33 @@
                 }
                 
                 // Update stats
-                document.getElementById('processedCount').textContent = i + 1;
+                document.getElementById('uniqueGeocoded').textContent = uniqueCount;
+                document.getElementById('duplicatesRejected').textContent = duplicateRejected;
+                document.getElementById('realSuccessRate').textContent = 
+                    `${(uniqueCount / processedStations.length * 100).toFixed(1)}%`;
                 document.getElementById('progressStats').textContent = 
-                    `${successCount} successful, ${failCount} failed out of ${i + 1} processed`;
+                    `${uniqueCount} unique, ${duplicateRejected} duplicates rejected, ${qualityRejected} quality rejected, ${failCount} failed out of ${i + 1} processed`;
             }
             
             isProcessing = false;
             document.getElementById('downloadBtn').disabled = false;
             
-            log('🎉 Geocoding complete!', 'success');
-            log(`📊 Final results: ${successCount} successful, ${failCount} failed`, 'success');
-            log('💾 Ready to download results', 'info');
+            log('🎉 Smart geocoding complete!', 'success');
+            log(`📊 Results: ${uniqueCount} unique, ${duplicateRejected} duplicates rejected, ${qualityRejected} quality rejected, ${failCount} failed`, 'success');
+            log(`🎯 Real success rate: ${(uniqueCount / processedStations.length * 100).toFixed(1)}%`, 'success');
+            log('💾 Ready to download clean results', 'info');
         }
 
         function downloadResults() {
             if (!workbookData || !processedStations.length) return;
             
-            log('📝 Creating updated Excel file...', 'info');
+            log('📝 Creating clean Excel file...', 'info');
             
             const { jsonData } = workbookData;
             const newJsonData = [...jsonData];
             
             // Add coordinate columns
-            newJsonData[0].splice(9, 0, 'Coordinates (Lat, Lon)', 'Geocoded Address', 'Geocoding Quality');
+            newJsonData[0].splice(9, 0, 'Coordinates (Lat, Lon)', 'Geocoded Address', 'Quality Score', 'Validation Status');
             
             // Add coordinate data
             for (let i = 1; i < newJsonData.length; i++) {
@@ -368,30 +457,32 @@
                     newJsonData[i].splice(9, 0, 
                         `${coords.lat}, ${coords.lon}`,
                         coords.display_name || '',
-                        coords.confidence ? coords.confidence.toFixed(3) : ''
+                        coords.confidence ? coords.confidence.toFixed(3) : '',
+                        'VALIDATED'
                     );
                 } else {
-                    newJsonData[i].splice(9, 0, '', '', '');
+                    newJsonData[i].splice(9, 0, '', '', '', '');
                 }
             }
             
             // Create and download Excel file
             const newWorksheet = XLSX.utils.aoa_to_sheet(newJsonData);
             const newWorkbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, 'Gas Stations with Coordinates');
+            XLSX.utils.book_append_sheet(newWorkbook, newWorksheet, 'Clean Gas Stations Coordinates');
             
-            const fileName = `Gas_Stations_with_Coordinates_${new Date().toISOString().split('T')[0]}.xlsx`;
+            const fileName = `Clean_Gas_Stations_Coordinates_${new Date().toISOString().split('T')[0]}.xlsx`;
             XLSX.writeFile(newWorkbook, fileName);
             
-            log('✅ File downloaded: ' + fileName, 'success');
+            log('✅ Clean file downloaded: ' + fileName, 'success');
         }
 
-        // Utility functions
-        function extractAddress(siteName) {
+        // Improved address extraction
+        function improvedExtractAddress(siteName) {
             if (!siteName || siteName === 'undefined') return null;
             
             let cleaned = siteName.trim();
             
+            // Remove prefixes but keep more context
             const prefixes = [
                 'Self Service - ',
                 'Fixed-Self Serve - ',
@@ -409,85 +500,176 @@
                 }
             }
             
+            // Handle "Operating as" more carefully
             if (cleaned.includes('Operating as ')) {
                 const afterOperating = cleaned.substring(cleaned.indexOf('Operating as ') + 'Operating as '.length);
                 const parts = afterOperating.split(' - ');
                 
+                // Look for the most specific address part
+                let bestPart = null;
+                let bestScore = 0;
+                
                 for (const part of parts) {
-                    if (part.match(/\d+/) && (
-                        part.toLowerCase().includes('highway') || 
-                        part.toLowerCase().includes('hwy') || 
-                        part.toLowerCase().includes('road') || 
-                        part.toLowerCase().includes('street') || 
-                        part.toLowerCase().includes('ave') || 
-                        part.toLowerCase().includes('blvd') ||
-                        part.match(/\d+.*,/)
-                    )) {
-                        cleaned = part.trim();
-                        break;
+                    const score = scoreAddressSpecificity(part);
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestPart = part.trim();
                     }
                 }
                 
-                if (cleaned.includes('Operating as ') && parts.length > 1) {
-                    const lastPart = parts[parts.length - 1].trim();
-                    if (lastPart.length > 3) {
-                        cleaned = lastPart;
-                    }
+                if (bestPart && bestScore > 2) {
+                    cleaned = bestPart;
+                } else if (parts.length > 1) {
+                    cleaned = parts[parts.length - 1].trim();
                 }
             }
             
+            // Handle regular dash separation
             if (cleaned.includes(' - ')) {
                 const parts = cleaned.split(' - ');
                 let bestPart = null;
+                let bestScore = 0;
                 
                 for (const part of parts) {
-                    const trimmedPart = part.trim();
-                    if (trimmedPart.match(/\d+/) && (
-                        trimmedPart.toLowerCase().includes('highway') || 
-                        trimmedPart.toLowerCase().includes('hwy') || 
-                        trimmedPart.toLowerCase().includes('road') || 
-                        trimmedPart.toLowerCase().includes('street') || 
-                        trimmedPart.toLowerCase().includes('ave') || 
-                        trimmedPart.toLowerCase().includes('blvd') ||
-                        trimmedPart.match(/\d+.*[,.]/) ||
-                        (trimmedPart.match(/\d+/) && trimmedPart.split(' ').length >= 3)
-                    )) {
-                        bestPart = trimmedPart;
-                        break;
+                    const score = scoreAddressSpecificity(part.trim());
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestPart = part.trim();
                     }
                 }
                 
-                if (bestPart) {
+                if (bestPart && bestScore > 2) {
                     cleaned = bestPart;
-                } else {
-                    for (const part of parts) {
-                        const trimmedPart = part.trim();
-                        if (trimmedPart.length > 3 && 
-                            !trimmedPart.includes('Self Service') && 
-                            !trimmedPart.includes('Attended') && 
-                            !trimmedPart.includes('Coast ii Coast')) {
-                            cleaned = trimmedPart;
-                            break;
-                        }
-                    }
                 }
             }
             
             cleaned = cleaned.replace(/^[\s\-]+|[\s\-]+$/g, '');
             
-            if (cleaned && !cleaned.toLowerCase().includes('nova scotia') && !cleaned.toLowerCase().includes(', ns')) {
-                cleaned += ', Nova Scotia, Canada';
+            // Only add Nova Scotia if we have a specific address
+            if (cleaned && scoreAddressSpecificity(cleaned) > 2) {
+                if (!cleaned.toLowerCase().includes('nova scotia') && !cleaned.toLowerCase().includes(', ns')) {
+                    cleaned += ', Nova Scotia, Canada';
+                }
+                return cleaned;
             }
             
-            return cleaned || null;
+            return null;
         }
 
+        // Score address specificity (higher = more specific)
+        function scoreAddressSpecificity(address) {
+            let score = 0;
+            const lower = address.toLowerCase();
+            
+            // Points for having numbers (likely street numbers)
+            if (/\d+/.test(address)) score += 3;
+            
+            // Points for street types
+            if (/(street|road|highway|hwy|avenue|ave|boulevard|blvd|drive|dr|lane|ln|court|ct)/.test(lower)) score += 2;
+            
+            // Points for having comma (suggests city/province)
+            if (address.includes(',')) score += 1;
+            
+            // Penalty for generic terms
+            if (/(limited|ltd|inc|corp|company|store|market|centre|center)/.test(lower)) score -= 1;
+            
+            // Penalty for just chain names
+            if (/(circle k|petro.?canada|corner store|sobeys|fast fuel|express)/.test(lower) && score < 3) score -= 2;
+            
+            return Math.max(0, score);
+        }
+
+        // Smart geocoding with multiple strategies
+        async function smartGeocode(address, originalName) {
+            // Strategy 1: Try exact address
+            let result = await geocodeAddress(address);
+            if (result) return result;
+            
+            // Strategy 2: Try without chain name if present
+            const addressWithoutChain = removeChainNames(address);
+            if (addressWithoutChain !== address) {
+                result = await geocodeAddress(addressWithoutChain);
+                if (result) return result;
+            }
+            
+            // Strategy 3: Try with more context
+            const addressWithContext = enhanceAddressContext(address, originalName);
+            if (addressWithContext !== address) {
+                result = await geocodeAddress(addressWithContext);
+                if (result) return result;
+            }
+            
+            return null;
+        }
+
+        function removeChainNames(address) {
+            const chainPatterns = [
+                /circle k[^,]*/i,
+                /petro.?canada[^,]*/i,
+                /corner store[^,]*/i,
+                /sobeys[^,]*/i,
+                /fast fuel[^,]*/i,
+                /esso[^,]*/i
+            ];
+            
+            let cleaned = address;
+            for (const pattern of chainPatterns) {
+                cleaned = cleaned.replace(pattern, '').replace(/^\s*,\s*/, '').trim();
+            }
+            
+            return cleaned;
+        }
+
+        function enhanceAddressContext(address, originalName) {
+            // Try to extract more specific location info from original name
+            const cityMatch = originalName.match(/,\s*([A-Za-z\s]+)(?:,|\s*$)/);
+            if (cityMatch && !address.includes(cityMatch[1])) {
+                return address.replace(', Nova Scotia, Canada', `, ${cityMatch[1]}, Nova Scotia, Canada`);
+            }
+            
+            return address;
+        }
+
+        // Quality validation
+        function validateGeocodingQuality(coords, inputAddress, originalName, minConfidence, requireSpecific) {
+            // Check confidence score
+            if (coords.confidence < minConfidence) {
+                return { passed: false, reason: `Low confidence (${coords.confidence.toFixed(3)})` };
+            }
+            
+            // Check if result seems too generic
+            const displayName = coords.display_name.toLowerCase();
+            const inputLower = inputAddress.toLowerCase();
+            
+            // If we searched for a specific address but got a very different result
+            if (requireSpecific && inputLower.match(/\d+/) && !displayName.includes(inputLower.match(/\d+/)[0])) {
+                return { passed: false, reason: 'Address mismatch' };
+            }
+            
+            // Check for common fallback locations
+            const fallbackPatterns = [
+                /circle k.*sydney/,
+                /corner store.*lakeside/,
+                /petro.?canada.*glace bay/,
+                /sobeys.*sydney/
+            ];
+            
+            for (const pattern of fallbackPatterns) {
+                if (pattern.test(displayName)) {
+                    return { passed: false, reason: 'Generic fallback location' };
+                }
+            }
+            
+            return { passed: true, reason: 'Valid' };
+        }
+
+        // Geocoding function
         async function geocodeAddress(address) {
             if (!address) return null;
             
             try {
                 const encodedAddress = encodeURIComponent(address);
-                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1&countrycodes=ca`;
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodedAddress}&limit=1&countrycodes=ca&addressdetails=1`;
                 
                 const response = await fetch(url);
                 if (!response.ok) {
@@ -510,6 +692,7 @@
             }
         }
 
+        // Utility functions
         function delay(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
         }
